@@ -207,7 +207,7 @@ exports.AddBranch = async (req, res) => {
     } catch {
       return res.status(400).json({
         success: false,
-        message: "Unable to fetch latitude and longitude",
+        message: "Unable to fetch address",
       });
     }
 
