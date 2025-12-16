@@ -40,6 +40,7 @@ exports.AddTenants = async (req, res) => {
         const {
             contactNumber,
             name,
+            email,
             Rent,
             dues = 0,
             advanced = 0,
@@ -77,6 +78,7 @@ exports.AddTenants = async (req, res) => {
             dues,
             mode: "offline",
             advanced,
+            email,
             idProof,
             idProofType,
             emergencyContactNumber,
@@ -251,7 +253,7 @@ exports.GetTenantById = async (req, res) => {
         // 1️⃣ Check Redis cache first
         const cachedData = await redisClient.get(cachedKey);
         if (cachedData) {
-            return res.status(200).json({ success: true, message: "Tenant fetched from cache", ...JSON.parse(cachedData) });
+            return res.status(200).json({ success: true, message: "Tenant fetched from cache cefac", ...JSON.parse(cachedData) });
         }
 
         // 2️⃣ Fetch from DB
@@ -316,7 +318,7 @@ exports.GetTenantsByBranchId = async (req, res) => {
         const cachedKey = `tenant-branch-${id}`;
 
         const cachedData = await redisClient.get(cachedKey);
-        if (cachedData) return res.status(200).json({ success: true, message: "Tenants fetched from cache", tenants: JSON.parse(cachedData) });
+        if (cachedData) return res.status(200).json({ success: true, message: "Tenants fetched from cacheerercv", tenants: JSON.parse(cachedData) });
 
         const tenants = await Tenant.find({ branch: id });
         await redisClient.set(cachedKey, JSON.stringify(tenants), { EX: 3600 });
@@ -462,14 +464,14 @@ exports.BookingDetails = async (req, res) => {
         const cacheKey = `tenant-${req.user._id}-booking`;
 
         // Check if cached
-        const cached = await redisClient.get(cacheKey);
-        if (cached) {
-            return res.status(200).json({
-                success: true,
-                message: "All bookings fetched from cache",
-                bookings: JSON.parse(cached),
-            });
-        }
+         const cached = await redisClient.get(cacheKey);
+        // if (cached) {
+        //     return res.status(200).json({
+        //         success: true,
+        //         message: "All bookings fetched from cache",
+        //         bookings: JSON.parse(cached),
+        //     });
+        // }
 
         // Fetch all bookings for this tenant
         const allBookings = await Tenant.find({ name: req.user.username });
@@ -485,15 +487,25 @@ exports.BookingDetails = async (req, res) => {
             allBookings.map(async (booking) => {
 
                 const branch = await PropertyBranch.findOne(
-                    { "rooms.roomNumber": booking.roomNumber },
-                    { name: 1, city: 1, "rooms.$": 1 }
-                ).populate({
-                    path: "rooms.personalreview",
-                    populate: {
-                        path: "user",
-                        select: "username email _id"
+                    {
+                        _id: booking.branch,
+                        "rooms.roomNumber": booking.roomNumber,
+                    },
+                    {
+                        name: 1,
+                        city: 1,
+                        rooms: { $elemMatch: { roomNumber: booking.roomNumber } }
                     }
-                });
+                )
+                    .populate({
+                        path: "rooms.personalreview",
+                        select: "rating comment createdAt",
+                        populate: {
+                            path: "user",
+                            select: "username email"
+                        }
+                    })
+                    .lean();   // 🔥 IMPORTANT
 
                 if (!branch || !branch.rooms?.length) {
                     return {
@@ -515,11 +527,12 @@ exports.BookingDetails = async (req, res) => {
                         city: branch.city,
                     },
                     room,
-                    roomImages: room.roomImages || [],
-                    reviews: room.personalreview || [],
+                    roomImages: room.roomImages ?? [],
+                    reviews: room.personalreview ?? [],
                 };
             })
         );
+
 
 
 
@@ -592,7 +605,7 @@ exports.getAlltenantbyStatus = async (req, res) => {
         const managerId = req.user._id;
         const { status } = req.params;
 
-        const cachedKey = `tenant-${managerId}-status-${status}`;
+        const cachedKey = `tenant-${managerId}-status`;
         const cachedData = await redisClient.get(cachedKey);
         if (cachedData) {
             return res.status(200).json({

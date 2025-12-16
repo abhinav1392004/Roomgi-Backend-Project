@@ -242,6 +242,7 @@ exports.makingpayment = async (req, res) => {
 
 
 exports.verifying = async (req, res) => {
+    console.log("💡 Payment verification initiated");
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -254,8 +255,11 @@ exports.verifying = async (req, res) => {
             amount,
         } = req.body;
 
+        console.log("📦 Received payment data:", req.body);
+
         /* ------------------ BASIC VALIDATION ------------------ */
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            console.log("⚠️ Incomplete payment details");
             return res.status(400).json({
                 success: false,
                 message: "Incomplete payment details",
@@ -264,18 +268,21 @@ exports.verifying = async (req, res) => {
 
         /* ------------------ USER ------------------ */
         const user = await Signup.findById(req.user._id).session(session);
+        console.log("👤 Fetched user:", user);
+
         if (!user) {
+            console.log("❌ User not found");
             return res.status(400).json({ success: false, message: "User not found" });
         }
 
         /* ------------------ IDEMPOTENCY CHECK ------------------ */
-        const existingPayment = await Payment.findOne({
-            razorpay_payment_id,
-        }).session(session);
+        const existingPayment = await Payment.findOne({ razorpay_payment_id }).session(session);
+        console.log("💳 Existing payment check:", existingPayment);
 
         if (existingPayment) {
             await session.commitTransaction();
             session.endSession();
+            console.log("ℹ️ Payment already processed");
             return res.status(200).json({
                 success: true,
                 message: "Payment already processed",
@@ -288,7 +295,10 @@ exports.verifying = async (req, res) => {
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
             .digest("hex");
 
+        console.log("🔑 Generated signature:", generatedSignature);
+
         if (generatedSignature !== razorpay_signature) {
+            console.log("❌ Invalid payment signature");
             return res.status(400).json({
                 success: false,
                 message: "Invalid payment signature",
@@ -299,26 +309,32 @@ exports.verifying = async (req, res) => {
         const branchDoc = await PropertyBranch.findOne({
             "rooms._id": roomId,
         }).session(session);
+        console.log("🏢 Fetched branch document:", branchDoc);
 
         if (!branchDoc) {
+            console.log("❌ Branch not found");
             return res.status(400).json({ success: false, message: "Branch not found" });
         }
 
         const room = branchDoc.rooms.id(roomId);
+        console.log("🚪 Fetched room:", room);
+
         if (!room) {
+            console.log("❌ Room not found");
             return res.status(400).json({ success: false, message: "Room not found" });
         }
 
         if (!room.verified) {
+            console.log("⚠️ Room not verified");
             return res.status(400).json({ success: false, message: "Room not verified" });
         }
 
         /* ------------------ CAPACITY LOGIC ------------------ */
         let capacity = 1;
         if (room.category === "Pg") {
-            capacity =
-                room.type === "Double" ? 2 : room.type === "Triple" ? 3 : 1;
+            capacity = room.type === "Double" ? 2 : room.type === "Triple" ? 3 : 1;
         }
+        console.log("📊 Room capacity determined:", capacity);
 
         /* ------------------ ATOMIC ROOM UPDATE ------------------ */
         const updatedBranch = await PropertyBranch.findOneAndUpdate(
@@ -336,9 +352,10 @@ exports.verifying = async (req, res) => {
             },
             { session, new: true }
         );
-
+        console.log("🔄 Updated branch after room occupancy increment:", updatedBranch);
 
         if (!updatedBranch) {
+            console.log("❌ Room is already full");
             return res.status(400).json({
                 success: false,
                 message: "Room is already full",
@@ -353,13 +370,11 @@ exports.verifying = async (req, res) => {
 
         updatedBranch.markModified("rooms");
         await updatedBranch.save({ session });
+        console.log("✅ Room availability updated:", updatedRoom);
 
         /* ------------------ TENANT CREATION ------------------ */
-        const Rent =
-            room.rent ||
-            room.rentperday ||
-            room.rentperNight ||
-            room.rentperhour;
+        const Rent = room.rent || room.rentperday || room.rentperNight || room.rentperhour;
+        console.log("💰 Calculated rent:", Rent);
 
         const newTenant = await Tenant.create(
             [
@@ -368,6 +383,7 @@ exports.verifying = async (req, res) => {
                     name: user.username,
                     Rent,
                     tenantId: req.user._id,
+                    email:req.user.email,
                     dues: 0,
                     advanced: 0,
                     roomNumber: room.roomNumber,
@@ -375,9 +391,10 @@ exports.verifying = async (req, res) => {
             ],
             { session }
         );
+        console.log("🆕 Tenant created:", newTenant[0]);
 
         /* ------------------ PAYMENT RECORD ------------------ */
-        await Payment.create(
+        const paymentRecord = await Payment.create(
             [
                 {
                     tenantId: newTenant[0]._id,
@@ -393,20 +410,26 @@ exports.verifying = async (req, res) => {
             ],
             { session }
         );
+        console.log("💳 Payment record created:", paymentRecord[0]);
 
         /* ------------------ COMMIT ------------------ */
         await session.commitTransaction();
         session.endSession();
+        console.log("🎉 Transaction committed successfully");
 
         /* ------------------ REDIS CACHE INVALIDATION ------------------ */
         if (redisClient) {
             await Promise.all([
                 redisClient.del("all-pg"),
-                redisClient.del(`tenant-${room.branch}`),
+                redisClient.del(`tenant-branch-${room.branch}`),
                 redisClient.del(`room-${room.branch}-${roomId}`),
                 redisClient.del(`payment-${branchDoc.branchmanager}`),
                 redisClient.del(`tenant-${req.user._id}-booking`),
+                redisClient.del(`branches-${branchDoc._id}-allbranch`),
+                redisClient.del(`tenant-${branchDoc.branchmanager}-status`),
+
             ]);
+            console.log("🗑️ Redis cache invalidated");
         }
 
         /* ------------------ RESPONSE ------------------ */

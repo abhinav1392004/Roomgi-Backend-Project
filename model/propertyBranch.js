@@ -15,23 +15,12 @@ const RoomSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-   
-    personalreview: [{
-        user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Signup",
-            index: true
-        },
-        rating:{
-            type:Number,
-            default:0,
-        },
-        review:{
-            type:String,
-        }
-
-
-    }],
+ personalreview: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Review",
+  default: []   // 🔥 VERY IMPORTANT
+}]
+,
 
 
     hoteltype: {

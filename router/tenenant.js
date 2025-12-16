@@ -14,7 +14,7 @@ console.log("hiidc")
 router.post("/create", Validate, AddTenants);
 router.put("/update/:id", UpdateTenant);
 router.get("/bookings", Validate, BookingDetails);
-router.get("/GetTenantByid/:id", GetTenantById)
+router.get("/GetTenantByid/:id",Validate, GetTenantById)
 router.get("/GetTenantsByBranchid/:id", Validate, GetTenantsByBranchId)
 
 

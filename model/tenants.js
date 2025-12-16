@@ -17,6 +17,10 @@ const tenantSchema = new mongoose.Schema({
     name: {
         type: String,
     },
+    email:{
+         type: String,
+
+    },
     mode: {
         type: String,
         enum: ["online", "offline"],
