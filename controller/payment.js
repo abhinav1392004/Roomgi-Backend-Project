@@ -403,7 +403,8 @@ exports.verifying = async (req, res) => {
                     mode: "Online",
                     email:req.user.email,
                     tilldatestatus: "paid",
-                    amountpaid: amount,
+                    amountpaid: amount.payableAmount,
+                    walletused:amount.walletUsed||0,
                     razorpay_order_id,
                     razorpay_payment_id,
                     razorpay_signature,
@@ -417,6 +418,9 @@ exports.verifying = async (req, res) => {
         await session.commitTransaction();
         session.endSession();
         console.log("🎉 Transaction committed successfully");
+
+        user.walletBalance-=amount.walletUsed;
+        await user.save();
 
         /* ------------------ REDIS CACHE INVALIDATION ------------------ */
         try {
