@@ -168,44 +168,81 @@ exports.AddBranch = async (req, res) => {
     const imageFiles = req.files || [];
 
     const foundProperty = await Signup.findById(userId);
-    if (!foundProperty) return res.status(404).json({ success: false, message: "Property not found" });
+    if (!foundProperty)
+      return res.status(404).json({ success: false, message: "Property not found" });
 
     const { address, city, state, pincode, name, streetAdress, landmark } = req.body;
     if (!address || !city || !state || !pincode || !streetAdress || !landmark || !name)
       return res.status(400).json({ success: false, message: "Missing required fields" });
 
-    // Parallel image upload
     const uploadImages = await Promise.all(
-      imageFiles.map(file => Uploadmedia.Uploadmedia(file.path).then(res => res.secure_url))
+      imageFiles.map(async (file) => {
+        try {
+          const result = await Uploadmedia.Uploadmedia(file.path);
+          return result.secure_url;
+        } catch {
+          return null;
+        }
+      })
     );
 
-    // Geocode address
+    const Propertyphoto = uploadImages.filter(Boolean);
+
     const fullAddress = `${streetAdress}, ${landmark}, ${address}, ${city}, ${state}, ${pincode}`;
-    const geo = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
-      params: { address: fullAddress, key: process.env.GOOGLE_API_KEY },
-    });
 
-    if (!(geo.data.status === "OK" && geo.data.results.length > 0))
-      return res.status(400).json({ success: false, message: "Unable to fetch latitude and longitude" });
+    let lat, lng;
+    try {
+      const geo = await axios.get(
+        "https://maps.googleapis.com/maps/api/geocode/json",
+        {
+          params: { address: fullAddress, key: process.env.GOOGLE_API_KEY },
+          timeout: 5000,
+        }
+      );
 
-    const { lat, lng } = geo.data.results[0].geometry.location;
+      if (geo.data.status !== "OK" || !geo.data.results.length)
+        throw new Error();
+
+      ({ lat, lng } = geo.data.results[0].geometry.location);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to fetch latitude and longitude",
+      });
+    }
 
     const createdBranch = await PropertyBranch.create({
-      city, name, address, state, pincode, streetAdress, landmark,
+      city,
+      name,
+      address,
+      state,
+      pincode,
+      streetAdress,
+      landmark,
       owner: userId,
       property: foundProperty._id,
-      Propertyphoto: uploadImages,
-      location: { type: "Point", coordinates: [lng, lat] },
-      lat, long: lng,
+      Propertyphoto,
+      location: {
+        type: "Point",
+        coordinates: [lng, lat],
+      },
+      lat,
+      lng,
     });
 
-    if (redisClient) await redisClient.del(`branches-${foundProperty._id}-allbranch`);
+    if (redisClient)
+      await redisClient.del(`branches-property-${foundProperty._id}`);
 
-    return res.status(200).json({ success: true, message: "Branch created successfully", createdBranch });
+    return res.status(201).json({
+      success: true,
+      message: "Branch created successfully",
+      createdBranch,
+    });
   } catch (error) {
     return handleError(res, error, "Failed to add branch");
   }
 };
+
 
 
 
