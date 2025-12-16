@@ -325,7 +325,7 @@ const GetUserProfile = async (req, res) => {
         const userid = req.user._id;
 
         const profile = await Signup.findById(userid)
-        const complain = await Complaint.find({ tenantId: userid })
+        const complain = await Complaint.find({ tenantId: userid }).populate("branchId")
         const payment = await Payment.find({ email: req.user.email })
         const reviews = await Review.find({ user: userid })
 
