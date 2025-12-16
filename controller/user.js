@@ -69,6 +69,7 @@ const signupcontroller = async (req, res) => {
             name: User.username,
             email: User.email,
             role: User.role,
+            walletBalance:User.walletBalance,
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET_KEY, {

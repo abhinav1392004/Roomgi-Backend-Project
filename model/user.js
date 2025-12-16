@@ -24,7 +24,7 @@ const SignupSchema = new mongoose.Schema({
   },
   walletBalance:{
     type:Number,
-    default:0,
+    default:100,
   },
   resetSession: { type: String },
   password: {
