@@ -345,8 +345,8 @@ exports.appointBranchManager = async (req, res) => {
     });
 
     // Step 3️⃣: Attach manager to branch
-    foundBranch.branchmanager.push(manager._id);
-    await foundBranch.save();
+    branchExists.branchmanager.push(manager._id);
+    await branchExists.save();
 
     // ✅ Redis cache invalidation
     // ✅ Redis cache invalidation
