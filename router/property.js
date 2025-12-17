@@ -7,7 +7,6 @@ const upload = multer({ storage: multer.diskStorage({}) });
 
 const {
     GetAllBranchOwner, AddBranch, EditBranch, getAllPg,
-    getAllBranchesWithLocation,
     deleteimage, addRoomImages,
     AppliedFilters, AppliedAllFilters, DeleteRoom,
     UpdateRoom, AllRooms, getAllBranchManager, changebranchpassword,
@@ -18,7 +17,6 @@ const {
 } = require("../controller/property");
 
 
-//  router.post("/create",Validate, CreateProperty);
 router.get("/get", Validate, GetAllBranch)
 router.get("/getallpg", getalllistedandunlisted)
 router.post("/listpg", listPgRoom)

@@ -293,91 +293,48 @@ exports.GetAllBranchByBranchId = async (req, res) => {
     });
   }
 };
-
 exports.appointBranchManager = async (req, res) => {
   try {
-    const ownerId = req.user._id;
     const { name, email, phone } = req.body;
-    const branchid = req.params.id
+    const branchId = req.params.id;
 
+    const branch = await PropertyBranch.findById(branchId);
+    if (!branch) return res.status(404).json({ message: "Branch not found" });
 
-    if (!name || !email || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: "Please fill all the fields",
-      });
-    }
-    console.log(branchid)
+    const existing = await Signup.findOne({ email });
+    if (existing) return res.status(409).json({ message: "Manager exists" });
 
-    // Find branch of this owner
-    const branch = await PropertyBranch
-      .findById(branchid)
-
-    console.log(branch)
-
-    if (!branch) {
-      return res.status(404).json({
-        success: false,
-        message: "Branch not found",
-      });
-    }
-
-    // Prevent duplicate users
-    const existingUser = await Signup.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "Branch manager already exists with this email",
-      });
-    }
-
-    // 1️⃣ Create auth user
-    const tempPassword = "1234";
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const hashed = await bcrypt.hash("1234", 10);
 
     const user = await Signup.create({
       email,
+      password: hashed,
       role: "branch-manager",
       username: name,
-      password: hashedPassword,
     });
 
-    // 2️⃣ Create manager profile
     const manager = await branchmanager.create({
       userId: user._id,
-      propertyId: branchid, // link to branch
+      propertyId: branchId,
       name,
       email,
       phone,
-      status: "Active",
     });
 
-    // 3️⃣ Attach manager to branch
     branch.branchmanager = manager._id;
     await branch.save();
 
-    // 4️⃣ Redis cache clear
-    if (redisClient) {
-      await redisClient.del(`branches-${ownerId}-allbranch`);
-      await redisClient.del(`branch-${branch._id}`);
-    }
-
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      message: "Branch manager created successfully",
+      message: "Branch manager appointed",
       manager,
-      branch,
     });
 
   } catch (error) {
-    console.error("appointBranchManager Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
+
 
 
 
@@ -582,22 +539,17 @@ exports.DeleteProperty = async (req, res) => {
 
 
 
-
-// ---------------------------
-// ADD ROOM
-// ---------------------------
 exports.AddRoom = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const role = req.user.role;
-    const imageFiles = req.files?.images || [];
-
-    if (role !== "branch-manager") {
+    if (req.user.role !== "branch-manager") {
       return res.status(403).json({
         success: false,
         message: "Only branch managers can add rooms",
       });
     }
+
+    const userId = req.user._id;
+    const imageFiles = req.files?.images || [];
 
     const {
       roomNumber,
@@ -628,10 +580,8 @@ exports.AddRoom = async (req, res) => {
       });
     }
 
-    // 🔥 1️⃣ Get branch-manager with property
-    const manager = await branchmanager
-      .findOne({ email: req.user.email })
-      .populate("propertyId");
+    // 🔥 1️⃣ Find manager (NO POPULATE)
+    const manager = await branchmanager.findOne({ email: req.user.email });
 
     if (!manager || !manager.propertyId) {
       return res.status(404).json({
@@ -640,14 +590,21 @@ exports.AddRoom = async (req, res) => {
       });
     }
 
-    const branch = manager.propertyId;
+    // 🔥 2️⃣ REAL branch document
+    const branch = await PropertyBranch.findById(manager.propertyId);
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: "Branch not found",
+      });
+    }
 
-    // 🔥 2️⃣ Check duplicate room number
-    const roomExists = branch.rooms?.some(
-      (r) => Number(r.roomNumber) === Number(roomNumber)
+    // 🔥 3️⃣ Duplicate room check (BRANCH LEVEL)
+    const exists = branch.rooms.some(
+      r => Number(r.roomNumber) === Number(roomNumber)
     );
 
-    if (roomExists) {
+    if (exists) {
       return res.status(409).json({
         success: false,
         message: "Room number already exists in this branch",
@@ -657,8 +614,8 @@ exports.AddRoom = async (req, res) => {
     // ☁️ Upload images
     const uploadedImages = [];
     for (const file of imageFiles) {
-      const uploadRes = await Uploadmedia.Uploadmedia(file.path);
-      uploadedImages.push(uploadRes.secure_url);
+      const upload = await Uploadmedia.Uploadmedia(file.path);
+      uploadedImages.push(upload.secure_url);
     }
 
     // 🧠 Capacity
@@ -666,7 +623,7 @@ exports.AddRoom = async (req, res) => {
     if (type === "Double") capacity = 2;
     if (type === "Triple") capacity = 3;
 
-    // 🏗️ Room object
+    // 🏗️ Create room
     const newRoom = {
       roomNumber: Number(roomNumber),
       category,
@@ -702,15 +659,9 @@ exports.AddRoom = async (req, res) => {
       roomImages: uploadedImages,
     };
 
-    // 🔥 3️⃣ Save room in PropertyBranch
+    // 🔥 4️⃣ PUSH ONLY IN THIS BRANCH
     branch.rooms.push(newRoom);
     await branch.save();
-
-    // ♻️ Redis cleanup
-    if (redisClient) {
-      await redisClient.del(`branch-${branch._id}`);
-      await redisClient.del(`rooms-branchmanager-${userId}`);
-    }
 
     return res.status(201).json({
       success: true,
@@ -729,12 +680,15 @@ exports.AddRoom = async (req, res) => {
 };
 
 
+
 // ---------------------------
 // GET ALL ROOMS
 // ---------------------------
+// ---------------------------
+// GET ALL ROOMS (FINAL)
+// ---------------------------
 exports.AllRooms = async (req, res) => {
   try {
-    // 🔐 Only branch manager
     if (req.user.role !== "branch-manager") {
       return res.status(403).json({
         success: false,
@@ -742,50 +696,22 @@ exports.AllRooms = async (req, res) => {
       });
     }
 
-    // 🔥 1️⃣ Get branch manager with property
-    const manager = await branchmanager
-      .findOne({ email: req.user.email })
-      .populate("propertyId");
-
+    // 🔥 Find manager
+    const manager = await branchmanager.findOne({ email: req.user.email });
     if (!manager || !manager.propertyId) {
       return res.status(404).json({
         success: false,
-        message: "No branch assigned to this manager",
+        message: "No branch assigned",
       });
     }
 
-    const branch = manager.propertyId;
-
-    const cachedKey = `rooms-${branch._id}`;
-
-    // 🔥 Optional Redis cache
-    /*
-    if (redisClient) {
-      const cached = await redisClient.get(cachedKey);
-      if (cached) {
-        return res.status(200).json({
-          success: true,
-          message: "Rooms from cache",
-          totalRooms: JSON.parse(cached).length,
-          rooms: JSON.parse(cached),
-        });
-      }
-    }
-    */
-
-    // 🔥 2️⃣ Get rooms
-    const rooms = branch.rooms || [];
-
-    // 🔥 Cache
-    if (redisClient) {
-      await redisClient.setEx(cachedKey, 3600, JSON.stringify(rooms));
-    }
+    // 🔥 REAL branch
+    const branch = await PropertyBranch.findById(manager.propertyId);
 
     return res.status(200).json({
       success: true,
-      message: "All rooms fetched successfully",
-      totalRooms: rooms.length,
-      rooms,
+      totalRooms: branch.rooms.length,
+      rooms: branch.rooms,
     });
 
   } catch (error) {
