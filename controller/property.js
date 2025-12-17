@@ -8,13 +8,6 @@ const Uploadmedia = require("../utils/cloudinary.js")
 const deletemedia = require("../utils/cloudinary.js")
 const axios = require('axios')
 
-async function AllProperty(id) {
-  const Allproprty = await Property.find({ owner: id }).populate({
-    path: "owner",
-    select: "username email "
-  });
-  return Allproprty;
-}
 
 
 
@@ -67,7 +60,7 @@ exports.GetAllBranch = async (req, res) => {
   try {
     const useremail = req.user.email;
     const userId = req.user._id;
-  
+
     const cachedKey = `branches-${userId}-allbranch`;
 
     if (redisClient) {
@@ -281,12 +274,11 @@ exports.AddBranch = async (req, res) => {
 exports.GetAllBranchByBranchId = async (req, res) => {
   try {
     const userId = req.user._id;
-
+    const manager = await branchmanager.findOne({ userId }).lean();
+const useremail=req.user.email;
     // Fetch branches only for the current branch manager
-    const branches = await PropertyBranch.find({ branchmanager: userId })
-      .select("name city address rooms category verified availabilityStatus")
-      .lean();
-
+    const branches = await branchmanager.find({ email:useremail }).lean();
+    console.log("branches", branches)
     return res.status(200).json({
       success: true,
       message: "All branches fetched successfully",
