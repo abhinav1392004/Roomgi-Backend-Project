@@ -302,12 +302,12 @@ exports.GetAllBranchByBranchId = async (req, res) => {
 exports.appointBranchManager = async (req, res) => {
   try {
     const userId = req.user._id; // admin/owner id
-    const { name, email, phone, branchId } = req.body;
+    const { name, email, phone } = req.body;
 
     if (!name || !email || !phone) {
       return res.status(400).json({ success: false, message: "Please fill all the fields" });
     }
-    const branchExists = await PropertyBranch.findOne({ email: req.user.email }).select("_id");
+    const branchExists = await PropertyBranch.findOne({ owner: req.user._id }).select("_id");
     if (!branchExists) {
       return res.status(409).json({
         success: false,
