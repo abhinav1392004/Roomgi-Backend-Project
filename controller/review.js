@@ -87,6 +87,8 @@ exports.createreview = async (req, res) => {
 
     // 5️⃣ Redis cache invalidation
     if (redisClient?.isOpen) {
+      await redisClient.del("all-pg");
+
       const tenantKeys = await redisClient.keys(`tenant-${userId}-*`);
       const branchKeys = await redisClient.keys(`branch-${branch._id}-*`);
 
