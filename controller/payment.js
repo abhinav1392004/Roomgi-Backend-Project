@@ -73,38 +73,38 @@ exports.getAllbranchPayments = async (req, res) => {
 
 
 exports.bookingConfermation = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    // Fetch booking and populate room info
-    const booking = await Booking.findById(id).populate("branch");
+        // Fetch booking and populate room info
+        const booking = await Booking.findById(id).populate("branch");
 
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found",
+            });
+        }
+
+        const room = booking.room;
+
+        return res.status(200).json({
+            success: true,
+            bookingId: booking._id,
+            status: booking.status,
+            username: booking.username,
+            branchName: booking?.branch?.name || null,
+            roomNumber: booking?.roomNumber || null,
+            amount: booking.amountPaid,
+        });
+    } catch (error) {
+        console.error("Error fetching booking:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message,
+        });
     }
-
-    const room = booking.room;
-
-    return res.status(200).json({
-      success: true,
-      bookingId: booking._id,
-      status: booking.status, 
-      username:booking.username,
-      branchName: booking?.branch?.name || null,
-      roomNumber: booking?.roomNumber || null,
-      amount: booking.amountPaid,
-    });
-  } catch (error) {
-    console.error("Error fetching booking:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
-  }
 };
 
 
@@ -153,19 +153,66 @@ exports.makingpayment = async (req, res) => {
     }
 };
 
+
 exports.verifying = async (req, res) => {
   console.log("💡 Payment verification initiated");
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, roomId, amount } = req.body;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      roomId,
+      amount,
+    } = req.body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ success: false, message: "Incomplete payment details" });
+    /* ---------- BASIC VALIDATION ---------- */
+    if (
+      !razorpay_order_id ||
+      !razorpay_payment_id ||
+      !razorpay_signature
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Incomplete payment details",
+      });
     }
 
-    const branch = await PropertyBranch.findOne({ "rooms._id": roomId }).session(session);
+    /* ---------- SIGNATURE VERIFICATION ---------- */
+    const generatedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (generatedSignature !== razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature",
+      });
+    }
+
+    /* ---------- IDEMPOTENCY ---------- */
+    const existingBooking = await Booking.findOne({
+      "razorpay.paymentId": razorpay_payment_id,
+    }).session(session);
+
+    if (existingBooking) {
+      await session.abortTransaction();
+      return res.status(200).json({
+        success: true,
+        message: "Payment already verified",
+        booking: existingBooking,
+      });
+    }
+
+    /* ---------- BRANCH & ROOM ---------- */
+    const branch = await PropertyBranch.findOne({
+      "rooms._id": roomId,
+    }).session(session);
+
     if (!branch) {
       return res.status(404).json({ success: false, message: "Branch not found" });
     }
@@ -179,46 +226,61 @@ exports.verifying = async (req, res) => {
       return res.status(400).json({ success: false, message: "Room full" });
     }
 
+    /* ---------- LOCK ROOM (CRITICAL) ---------- */
+    room.occupied += 1;
+    room.vacant = room.capacity - room.occupied;
+    room.availabilityStatus =
+      room.vacant === 0 ? "Occupied" : "Available";
+
+    branch.markModified("rooms");
+    await branch.save({ session });
+
+    /* ---------- CREATE BOOKING ---------- */
     const booking = await Booking.create(
-      [{
-        bookingId: razorpay_order_id,
-        email: req.user.email,
-        branch: branch._id,
-        room: room._id,
-        roomNumber: room.roomNumber,
-        paymentSource: "online",
-        status: "pending",
-        amount: {
-          totalAmount: amount.totalAmount || 0,
-          payableAmount: amount.payableAmount || 0,
-          walletUsed: amount.walletUsed || 0,
+      [
+        {
+          bookingId: razorpay_order_id,
+          email: req.user.email,
+          branch: branch._id,
+          room: room._id,
+          roomNumber: room.roomNumber,
+          paymentSource: "online",
+          status: "processing",
+          amount: {
+            totalAmount: amount.totalAmount || 0,
+            payableAmount: amount.payableAmount || 0,
+            walletUsed: amount.walletUsed || 0,
+          },
+          razorpay: {
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            signature: razorpay_signature,
+          },
+          userId: req.user._id,
+          username: req.user.username,
         },
-        razorpay: {
-          orderId: razorpay_order_id,
-          paymentId: razorpay_payment_id,
-          signature: razorpay_signature,
-        },
-        userId: req.user._id,
-        username: req.user.username,
-      }],
+      ],
       { session }
     );
 
-    // Redis invalidation (optional, already in try/catch)
-    if (redisClient?.isOpen) {
-      const deletePromises = [
-        redisClient.del("all-pg"),
-        redisClient.del(`tenant-branch-${branch._id}`),
-        redisClient.del(`room-${branch._id}-${roomId}`),
-      ];
-      await Promise.allSettled(deletePromises);
-    }
+    /* ---------- REDIS INVALIDATION ---------- */
+    await Promise.allSettled([
+      redis.del("all-pg"),
+      redis.del(`tenant-branch-${branch._id}`),
+      redis.del(`room-${branch._id}-${roomId}`),
+    ]);
 
     await session.commitTransaction();
 
+    /* ---------- PUSH TO WORKER ---------- */
+    await paymentQueue.add("process-payment", {
+      bookingId: booking[0].bookingId,
+      razorpay_payment_id,
+    });
+
     return res.status(200).json({
       success: true,
-      message: "Payment verified & tenant added successfully",
+      message: "Payment verified successfully",
       booking: booking[0],
     });
 
@@ -233,6 +295,7 @@ exports.verifying = async (req, res) => {
     session.endSession();
   }
 };
+
 
 
 exports.createPayment = async (req, res) => {

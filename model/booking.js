@@ -22,6 +22,7 @@ const bookingSchema = new mongoose.Schema(
             ref: "PropertyBranch",
             required: true,
         },
+        
 
 
         roomNumber: {
@@ -43,10 +44,12 @@ const bookingSchema = new mongoose.Schema(
             enum: ["online", "offline"],
             required: true,
         },
-        amountPaid: {
-            type: Number,
-            default: 0,
+        amount: {
+            totalAmount: Number,
+            payableAmount: Number,
+            walletUsed: Number,
         },
+
 
         /* ---------- RAZORPAY (ONLY ONLINE) ---------- */
         razorpay: {
