@@ -380,7 +380,7 @@ exports.deleteComplaint = async (req, res) => {
       return res.status(404).json({ success: false, message: "Complaint not found" });
     }
 
-    await complaint.remove();
+    await complaint.deleteOne();
 
     // Redis cache invalidate
     if (redisClient) {

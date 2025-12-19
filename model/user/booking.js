@@ -70,7 +70,10 @@ const bookingSchema = new mongoose.Schema(
             default: Date.now,
         },
 
-        checkInDate: Date,
+        checkInDate: {
+            type: Date,
+            default: Date.now,
+        },
         checkOutDate: Date,
 
         /* ---------- AUDIT / META ---------- */
