@@ -123,7 +123,7 @@ exports.makingpayment = async (req, res) => {
 
 
         const options = {
-            amount: Number(amount) * 100, // Razorpay requires paisa
+            amount: Number(amount), // Razorpay requires paisa
             currency,
             receipt: `receipt_${Date.now()}`,
             payment_capture: 1
