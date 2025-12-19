@@ -1,5 +1,5 @@
-const  crypto =require("crypto") ;
-const { paymentQueue } = require("../queue") 
+const crypto = require("crypto");
+const { paymentQueue } = require("../queue")
 
 exports.paymentWebhook = async (req, res) => {
   try {
@@ -18,13 +18,16 @@ exports.paymentWebhook = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid signature" });
     }
 
-   
+
     const event = req.body;
 
-   
-    await paymentQueue.add("process-payment-webhook", { event });
 
-   
+    a
+    await paymentQueue.add("razorpay-event", {
+      event,
+    });
+
+
     res.status(200).json({ success: true, message: "Webhook received" });
   } catch (error) {
     console.error("Webhook Error:", error);

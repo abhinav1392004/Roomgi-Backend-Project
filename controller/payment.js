@@ -223,8 +223,6 @@ exports.verifying = async (req, res) => {
         await session.commitTransaction();
         console.log("✅ Transaction committed successfully");
 
-        /* ------------------ RESPONSE ------------------ */
-        const updatedRoom = branch.rooms.id(roomId);
         return res.status(200).json({
             success: true,
             message: "Payment verified & tenant added successfully",

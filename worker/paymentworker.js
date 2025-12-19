@@ -15,7 +15,7 @@ const razorpay = new Razorpay({
 });
 
 export const paymentWorker = new Worker(
-  "process-payment-webhook",
+  "paymentQueue",
   async (job) => {
     console.log("📥 Received job:", job.id, job.data.event?.event);
 
