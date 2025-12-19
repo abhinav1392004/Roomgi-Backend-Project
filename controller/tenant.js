@@ -1,16 +1,16 @@
 
 
-const Tenant = require("../model/tenants")
-const Payment = require("../model/payment")
-const PropertyBranch = require("../model/propertyBranch")
-const Complaint = require("../model/complaints")
+const Tenant = require("../model/branchmanager/tenants")
+const Payment = require("../model/branchmanager/payment")
+const PropertyBranch = require("../model/owner/propertyBranch")
+const Complaint = require("../model/user/complaints")
 const redisClient = require("../utils/redis");
 
 
-const branchmanager = require("../model/branchmanager")
+const branchmanager = require("../model/owner/branchmanager")
 
 
-const Booking = require("../model/booking")
+const Booking = require("../model/user/booking")
 
 
 

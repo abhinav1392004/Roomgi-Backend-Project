@@ -1,6 +1,6 @@
-const Staff = require("../model/staff");
-const Property = require("../model/property");
-const PropertyBranch = require("../model/propertyBranch");
+const Staff = require("../model/owner/staff");
+const Property = require("../model/branchmanager/property");
+const PropertyBranch = require("../model/owner/propertyBranch");
 
 
 exports.getAllStaff = async (req, res) => {

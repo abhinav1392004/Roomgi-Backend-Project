@@ -1,13 +1,13 @@
-const Payment = require("../model/payment")
-const PropertyBranch = require("../model/propertyBranch")
-const Expense = require("../model/expenses")
-const Tenant = require("../model/tenants")
+const Payment = require("../model/branchmanager/payment")
+const PropertyBranch = require("../model/owner/propertyBranch")
+const Expense = require("../model/branchmanager/expenses")
+const Tenant = require("../model/branchmanager/tenants")
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const Signup = require("../model/user")
 const redisClient = require("../utils/redis");
 const mongoose = require("mongoose")
-const Booking = require("../model/booking")
+const Booking = require("../model/user/booking")
 const { paymentQueue } = require("../queue"); // <-- make sure the path is correct
 
 
@@ -125,7 +125,7 @@ exports.makingpayment = async (req, res) => {
         }
 
         const options = {
-            amount: Number(amount) * 100, // amount in paise
+            amount: Number(amount), // amount in paise
             currency,
             receipt: `receipt_${Date.now()}`,
             payment_capture: 1

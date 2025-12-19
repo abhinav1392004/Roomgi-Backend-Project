@@ -1,14 +1,14 @@
-const Property = require("../model/property")
+const Property = require("../model/branchmanager/property.js")
 const redisClient = require("../utils/redis");
-const PropertyBranch = require("../model/propertyBranch")
+const PropertyBranch = require("../model/owner/propertyBranch.js")
 const Signup = require("../model/user")
-const branchmanager = require("../model/branchmanager")
+const branchmanager = require("../model/owner/branchmanager.js")
 const bcrypt = require("bcrypt")
 const Uploadmedia = require("../utils/cloudinary.js")
 const deletemedia = require("../utils/cloudinary.js")
 const axios = require('axios')
 
-const Booking = require("../model/booking")
+const Booking = require("../model/user/booking.js")
 
 
 

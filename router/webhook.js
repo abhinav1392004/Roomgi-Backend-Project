@@ -4,10 +4,10 @@ const { paymentWebhook } =require("../controller/webhook")
 
 const router = express.Router();
 
-// 🔔 Razorpay will call this route
+
 router.post(
   "/webhooks",
-  express.raw({ type: "application/json" }), // ⚠️ IMPORTANT
+  express.raw({ type: "application/json" }),
   paymentWebhook
 );
 

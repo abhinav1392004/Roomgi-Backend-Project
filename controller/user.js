@@ -1,19 +1,19 @@
 
-const Wishlist = require("../model/wishlist")
+const Wishlist = require("../model/user/wishlist")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const { sendForgotPasswordMail } = require('../utils/mail')
 const crypto = require('crypto')
 const { Uploadmedia, deletemedia } = require("../utils/cloudinary")
-const Payment = require("../model/payment")
-const PropertyBranch = require("../model/propertyBranch")
-const Expense = require("../model/expenses")
-const Tenant = require("../model/tenants")
+const Payment = require("../model/branchmanager/payment")
+const PropertyBranch = require("../model/owner/propertyBranch")
+const Expense = require("../model/branchmanager/expenses")
+const Tenant = require("../model/branchmanager/tenants")
 const Razorpay = require("razorpay");
 const Signup = require("../model/user")
 const redisClient = require("../utils/redis");
-const Review = require("../model/review")
-const Complaint = require("../model/complaints")
+const Review = require("../model/user/review")
+const Complaint = require("../model/user/complaints")
 
 
 

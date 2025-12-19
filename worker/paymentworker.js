@@ -2,10 +2,10 @@ const { Worker } = require("bullmq");
 const Razorpay = require("razorpay");
 const mongoose = require("mongoose");
 
-const Booking = require("../model/booking");
-const PropertyBranch = require("../model/propertyBranch");
-const Tenant = require("../model/tenants");
-const Payment = require("../model/payment");
+const Booking = require("../model/user/booking");
+const PropertyBranch = require("../model/owner/propertyBranch");
+const Tenant = require("../model/branchmanager/tenants");
+const Payment = require("../model/branchmanager/payment");
 const redis = require("../utils/a"); // ioredis again
 
 

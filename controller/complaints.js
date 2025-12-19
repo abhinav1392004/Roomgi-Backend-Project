@@ -5,11 +5,11 @@
 
 
 
-const Tenant = require("../model/tenants");
-const Complaint = require("../model/complaints");
+const Tenant = require("../model/branchmanager/tenants");
+const Complaint = require("../model/user/complaints");
 const redisClient = require("../utils/redis");
-const branchmanager = require("../model/branchmanager");
-const PropertyBranch = require("../model/propertyBranch");
+const branchmanager = require("../model/owner/branchmanager");
+const PropertyBranch = require("../model/owner/propertyBranch");
 
 /* ======================================================
    🔁 CACHE INVALIDATION — VERSION BASED (OPTION 1)

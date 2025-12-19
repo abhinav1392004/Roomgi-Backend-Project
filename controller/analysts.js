@@ -1,9 +1,9 @@
 
 
-const property = require("../model/property")
-const Payment = require("../model/payment")
-const propertyBranch = require("../model/propertyBranch")
-const Tenant = require("../model/tenants")
+const property = require("../model/branchmanager/property")
+const Payment = require("../model/branchmanager/payment")
+const propertyBranch = require("../model/owner/propertyBranch")
+const Tenant = require("../model/branchmanager/tenants")
 
 async function findingbranch(id) {
     const propertybranch = await propertyBranch.find({ owner: id }).populate("owner");

@@ -1,14 +1,14 @@
 
 
-const Payment = require("../model/payment")
-const PropertyBranch = require("../model/propertyBranch")
-const Expense = require("../model/expenses")
-const Tenant = require("../model/tenants")
+const Payment = require("../model/branchmanager/payment")
+const PropertyBranch = require("../model/owner/propertyBranch")
+const Expense = require("../model/branchmanager/expenses")
+const Tenant = require("../model/branchmanager/tenants")
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const Signup = require("../model/user")
 const redisClient = require("../utils/redis");
-const Review = require("../model/review")
+const Review = require("../model/user/review")
 const mongoose = require("mongoose")
 
 
