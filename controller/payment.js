@@ -72,6 +72,42 @@ exports.getAllbranchPayments = async (req, res) => {
 
 
 
+exports.bookingConfermation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch booking and populate room info
+    const booking = await Booking.findById(id).populate("branch");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    const room = booking.room;
+
+    return res.status(200).json({
+      success: true,
+      bookingId: booking._id,
+      status: booking.status, 
+      username:booking.username,
+      branchName: booking?.branch?.name || null,
+      roomNumber: booking?.roomNumber || null,
+      amount: booking.amountPaid,
+    });
+  } catch (error) {
+    console.error("Error fetching booking:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+
 
 exports.makingpayment = async (req, res) => {
     try {

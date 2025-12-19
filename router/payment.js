@@ -8,7 +8,8 @@ const {
     createExpense,
     RevenueDetails,
     makingpayment,
-    verifying
+    verifying,
+    bookingConfermation
 } = require("../controller/payment");
 
 console.log("hiidc")
@@ -19,6 +20,9 @@ router.post("/create-order",Validate, makingpayment);
 router.post("/verify-payment",Validate, verifying);
 router.post("/create/expense", Validate, createExpense);
 router.get("/getdetails", Validate, RevenueDetails);
+
+router.get("/status/:id", Validate, bookingConfermation);
+
 
 
 
