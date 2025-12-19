@@ -153,130 +153,85 @@ exports.makingpayment = async (req, res) => {
     }
 };
 
-
 exports.verifying = async (req, res) => {
-    console.log("💡 Payment verification initiated");
+  console.log("💡 Payment verification initiated");
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, roomId, amount } = req.body;
 
-    try {
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            roomId,
-            amount,
-        } = req.body;
-
-        console.log("📦 Received payment data:", req.body);
-
-        /* ------------------ BASIC VALIDATION ------------------ */
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-            console.warn("⚠️ Incomplete payment details");
-            return res.status(400).json({
-                success: false,
-                message: "Incomplete payment details",
-            });
-        }
-        console.log("✅ Payment details validated");
-
-        /* ------------------ FETCH ROOM & BRANCH ------------------ */
-        const branch = await PropertyBranch.findOne({ "rooms._id": roomId }).session(session);
-        if (!branch) {
-            console.error("❌ Branch not found for roomId:", roomId);
-            throw new Error("Branch not found");
-        }
-        const room = branch.rooms.id(roomId);
-        if (!room) {
-            console.error("❌ Room not found in branch:", branch._id);
-            throw new Error("Room not found");
-        }
-        console.log("🏠 Branch & Room fetched successfully:", branch._id, room.roomNumber);
-
-        if (room.occupied >= room.capacity) {
-            console.warn("⚠️ Room full:", room.roomNumber);
-            throw new Error("Room full");
-        }
-
-        /* ------------------ CREATE BOOKING ------------------ */
-        const booking = await Booking.create(
-            [{
-                bookingId: razorpay_order_id,
-                email: req.user.email,
-                branch: branch._id,
-                room: room._id,
-                roomNumber: room.roomNumber,
-                paymentSource: "online",
-                status: "pending",
-                amount: {
-                    totalAmount: amount.totalAmount || 0,
-                    payableAmount: amount.payableAmount || 0,
-                    walletUsed: amount.walletUsed || 0,
-                },
-                razorpay: {
-                    orderId: razorpay_order_id,
-                    paymentId: razorpay_payment_id,
-                    signature: razorpay_signature,
-                },
-                userId: req.user._id,
-                username: req.user.username,
-            }],
-            { session }
-        );
-        console.log("🧾 Booking created:", booking[0]._id);
-
-        /* ------------------ REDIS CACHE INVALIDATION ------------------ */
-        try {
-            if (redisClient?.isOpen) {
-                console.log("♻️ Invalidating Redis cache...");
-                const deletePromises = [
-                    redisClient.del("all-pg"),
-                    redisClient.del(`tenant-branch-${branch._id}`),
-                    redisClient.del(`room-${branch._id}-${roomId}`),
-                    redisClient.del(`payment-${branch.branchmanager}`),
-                    redisClient.del(`tenant-${req.user._id}-booking`),
-                    redisClient.del(`tenant-${branch.branchmanager}-status`)
-                ];
-
-                const stream = redisClient.scanIterator({
-                    MATCH: `branches-${branch._id}-*`,
-                    COUNT: 100,
-                });
-
-                for await (const key of stream) {
-                    deletePromises.push(redisClient.del(key));
-                    console.log("🗑️ Deleted cache key:", key);
-                }
-
-                await Promise.allSettled(deletePromises);
-                console.log("✅ Redis cache invalidated successfully");
-            }
-        } catch (redisError) {
-            console.error("⚠️ Redis invalidation failed:", redisError);
-        }
-
-        await session.commitTransaction();
-        console.log("✅ Transaction committed successfully");
-
-        return res.status(200).json({
-            success: true,
-            message: "Payment verified & tenant added successfully",
-            booking: booking[0],
-            room: updatedRoom,
-        });
-
-    } catch (error) {
-        await session.abortTransaction();
-        console.error("❌ Payment verification error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-        });
-    } finally {
-        session.endSession();
-        console.log("🔚 Session ended");
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: "Incomplete payment details" });
     }
+
+    const branch = await PropertyBranch.findOne({ "rooms._id": roomId }).session(session);
+    if (!branch) {
+      return res.status(404).json({ success: false, message: "Branch not found" });
+    }
+
+    const room = branch.rooms.id(roomId);
+    if (!room) {
+      return res.status(404).json({ success: false, message: "Room not found" });
+    }
+
+    if (room.occupied >= room.capacity) {
+      return res.status(400).json({ success: false, message: "Room full" });
+    }
+
+    const booking = await Booking.create(
+      [{
+        bookingId: razorpay_order_id,
+        email: req.user.email,
+        branch: branch._id,
+        room: room._id,
+        roomNumber: room.roomNumber,
+        paymentSource: "online",
+        status: "pending",
+        amount: {
+          totalAmount: amount.totalAmount || 0,
+          payableAmount: amount.payableAmount || 0,
+          walletUsed: amount.walletUsed || 0,
+        },
+        razorpay: {
+          orderId: razorpay_order_id,
+          paymentId: razorpay_payment_id,
+          signature: razorpay_signature,
+        },
+        userId: req.user._id,
+        username: req.user.username,
+      }],
+      { session }
+    );
+
+    // Redis invalidation (optional, already in try/catch)
+    if (redisClient?.isOpen) {
+      const deletePromises = [
+        redisClient.del("all-pg"),
+        redisClient.del(`tenant-branch-${branch._id}`),
+        redisClient.del(`room-${branch._id}-${roomId}`),
+      ];
+      await Promise.allSettled(deletePromises);
+    }
+
+    await session.commitTransaction();
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment verified & tenant added successfully",
+      booking: booking[0],
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("❌ Payment verification error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  } finally {
+    session.endSession();
+  }
 };
 
 
