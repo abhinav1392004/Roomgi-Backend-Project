@@ -8,7 +8,7 @@ const Signup = require("../model/user")
 const redisClient = require("../utils/redis");
 const mongoose = require("mongoose")
 const Booking = require("../model/user/booking")
-const { paymentQueue } = require("../queue"); // <-- make sure the path is correct
+const { paymentQueue, paymentRentQueue } = require("../queue"); // <-- make sure the path is correct
 
 
 
@@ -231,7 +231,7 @@ exports.verifying = async (req, res) => {
         room.vacant = room.capacity - room.occupied;
         room.availabilityStatus = room.vacant === 0 ? "Occupied" : "Available";
 
-    
+
         await branch.save({ session });
         console.log("✅ Room locked:", room.roomNumber, "Occupied:", room.occupied);
 
@@ -242,6 +242,7 @@ exports.verifying = async (req, res) => {
             email: req.user.email,
             branch: branch._id,
             room: room._id,
+            securityDeposit: room.advancedmonth,
             roomNumber: room.roomNumber,
             paymentSource: "online",
             status: "processing",
@@ -297,6 +298,194 @@ exports.verifying = async (req, res) => {
     }
 };
 
+
+
+exports.verifyingRentPayment = async (req, res) => {
+    console.log("💡 Payment verification initiated");
+
+    const session = await mongoose.startSession();
+    let committed = false;
+
+    try {
+        session.startTransaction();
+
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, tenantId, amount,response,walletUsed } = req.body;
+
+
+        // ---------- BASIC VALIDATION ----------
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            console.log("❌ Incomplete payment details");
+            return res.status(400).json({ success: false, message: "Incomplete payment details" });
+        }
+
+        // ---------- SIGNATURE VERIFICATION ----------
+        const generatedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest("hex");
+
+
+        if (generatedSignature !== razorpay_signature) {
+            console.log("❌ Invalid payment signature");
+            return res.status(400).json({ success: false, message: "Invalid payment signature" });
+        }
+
+        const foundtenant = await Tenant.findById(tenantId );
+
+        if (!foundtenant) {
+            return res.status(404).json({
+                success: false,
+                message: "ot Able to Find Te TEannat "
+            })
+        }
+     
+
+
+               const payment =   await Payment.create({
+                    tenantId:foundtenant._id,
+                    amountpaid: amount,
+                    walletused: walletUsed||0,
+                    totalAmount: amount+walletUsed,
+                    paymentStatus: "processing",
+                    email: req.user.email,
+                    mode: "online",
+
+                })
+
+
+
+
+        // ---------- REDIS INVALIDATION ----------
+        console.log("♻️ Invalidating Redis cache...");
+        await Promise.allSettled([
+            redisClient.del("all-pg"),
+            redisClient.del(`tenant-branch-${branch._id}`),
+            redisClient.del(`room-${branch._id}-${roomId}`),
+        ]);
+        console.log("✅ Redis cache cleared");
+
+        // ---------- PUSH TO WORKER ----------
+        console.log("📤 Adding job to paymentQueue...");
+        await paymentRentQueue.add("adjust-rent", {
+            tenantId,
+            paymentId:payment._id,
+            amount
+        });
+        console.log("✅ Job added to paymentQueue");
+
+        // ---------- COMMIT TRANSACTION ----------
+        await session.commitTransaction();
+        committed = true;
+        console.log("✅ Transaction committed");
+
+        return res.status(200).json({ success: true, message: "Payment verified successfully", booking: booking[0] });
+
+    } catch (error) {
+        if (!committed) {
+            await session.abortTransaction();
+            console.log("⚠️ Transaction aborted due to error");
+        }
+        console.error("❌ Payment verification error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    } finally {
+        session.endSession();
+        console.log("🛑 Session ended");
+    }
+};
+
+
+
+
+
+
+
+
+
+
+exports.payRent = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { tenantId, amount, mode } = req.body;
+
+        if (!tenantId || !amount || amount <= 0) {
+            throw new Error("Invalid payment data");
+        }
+
+        const tenant = await Tenant.findById(tenantId).session(session);
+        if (!tenant) throw new Error("Tenant not found");
+
+        let payable = tenant.rent;
+        let usedAdvance = 0;
+
+        /* 🔥 AUTO ADJUST ADVANCE */
+        if (tenant.advanced > 0) {
+            usedAdvance = Math.min(tenant.advanced, payable);
+            payable -= usedAdvance;
+            tenant.advanced -= usedAdvance;
+        }
+
+        let paymentStatus = "paid";
+
+        /* 🔥 PARTIAL PAYMENT LOGIC */
+        if (amount < payable) {
+            tenant.duesamount += payable - amount;
+            tenant.duesmonth += 1;
+            tenant.status = "dues";
+            paymentStatus = "dues";
+        } else {
+            tenant.status = "paid";
+        }
+
+        tenant.lastPaidDate = new Date();
+
+        await tenant.save({ session });
+
+        /* 🔥 PAYMENT HISTORY */
+        await Payment.create(
+            [
+                {
+                    tenantId: tenant._id,
+                    branch: tenant.branch,
+                    roomNumber: tenant.roomNumber,
+                    amountpaid: amount,
+                    mode: mode || "offline",
+                    email: tenant.email,
+                    paymentForMonth: new Date().toLocaleString("default", {
+                        month: "short",
+                        year: "numeric"
+                    }),
+                    status: paymentStatus
+                }
+            ],
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(200).json({
+            success: true,
+            message: "Rent payment recorded successfully",
+            data: {
+                tenantId,
+                amountPaid: amount,
+                usedAdvance,
+                status: paymentStatus
+            }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
 
 
 ////////////////////////////////////////////////////

@@ -22,6 +22,10 @@ const bookingSchema = new mongoose.Schema(
             ref: "PropertyBranch",
             required: true,
         },
+        securityDeposit:{
+             type: Number,
+             default:0,
+        },
         
 
 
@@ -61,7 +65,7 @@ const bookingSchema = new mongoose.Schema(
         /* ---------- OFFLINE INFO ---------- */
         collectedBy: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "User", // owner/admin
+            ref: "Signup", // owner/admin
         },
 
         /* ---------- BOOKING DATES ---------- */
@@ -69,21 +73,9 @@ const bookingSchema = new mongoose.Schema(
             type: Date,
             default: Date.now,
         },
-
-        checkInDate: {
-            type: Date,
-            default: Date.now,
-        },
-        checkOutDate: Date,
-
-        /* ---------- AUDIT / META ---------- */
-        createdBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-        },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
+            ref: "Signup",
         },
         notes: String,
     },

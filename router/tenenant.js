@@ -9,6 +9,8 @@ const {
   GetTenantRentHistory, getAllActiveTenantByBranch, GetTenantsByBranchId, getAlltenantbyStatus
 } = require("../controller/tenant");
 
+const {DasboardBooking}=require("../controller/user/dashboardbooking")
+
 console.log("hiidc")
 
 router.post("/create", Validate, AddTenants);
@@ -16,7 +18,7 @@ router.put("/update/:id", UpdateTenant);
 router.get("/bookings", Validate, BookingDetails);
 router.get("/GetTenantByid/:id",Validate, GetTenantById)
 router.get("/GetTenantsByBranchid/:id", Validate, GetTenantsByBranchId)
-
+router.get("/getdashboard/:id",Validate, DasboardBooking);
 
 
 

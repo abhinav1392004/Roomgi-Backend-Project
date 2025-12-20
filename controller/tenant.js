@@ -279,15 +279,11 @@ exports.GetTenantById = async (req, res) => {
         }
 
         // 2️⃣ Fetch from DB
-        const foundTenant = await Tenant.findById(id)
-            .populate({ path: "branch", populate: { path: "property" } });
+        const foundTenant = await Tenant.findById(id).populate("tenantId");
 
         if (!foundTenant) return res.status(404).json({ success: false, message: "Tenant not found" });
 
-        const allComplaints = await Complaint.find({ tenantId: id });
-        const allPayments = await Payment.find({ tenantId: id });
-
-        const responseData = { foundTenant, allComplaints, allPayments };
+        const responseData = { foundTenant };
 
         // 3️⃣ Cache in Redis for 1 hour
         await redisClient.set(cachedKey, JSON.stringify(responseData), { EX: 3600 });

@@ -72,9 +72,7 @@ const signupcontroller = async (req, res) => {
             walletBalance:User.walletBalance,
         };
 
-        const token = jwt.sign(payload, process.env.JWT_SECRET_KEY, {
-            expiresIn: "24h"
-        })
+        const token = jwt.sign(payload, process.env.JWT_SECRET_KEY)
         const options = {
             path: "/",
             expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
@@ -255,9 +253,7 @@ const Logincontroller = async (req, res) => {
             role: existingUser.role,
         };
 
-        const token = jwt.sign(payload, process.env.JWT_SECRET_KEY, {
-            expiresIn: "24h"
-        })
+        const token = jwt.sign(payload, process.env.JWT_SECRET_KEY)
         const options = {
             path: "/",
             expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days

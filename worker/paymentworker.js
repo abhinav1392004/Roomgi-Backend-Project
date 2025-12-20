@@ -65,12 +65,15 @@ const paymentWorker = new Worker(
       const tenant = await Tenant.create(
         [
           {
+              branch: branch._id,
             tenantId: booking.userId,
             roomNumber: room.roomNumber,
-            branch: branch._id,
-            email: booking.email,
+            securityDeposit:booking.securityDeposit,
+          
             rent: room.price || room.rentperday || room.rentperNight || room.rentperhour,
+            email: booking.email,
             name: booking.username,
+            securityDeposit: room.advancedmonth ? room.price * room.advancedmonth : 0,
           },
         ],
         { session }
@@ -85,14 +88,18 @@ const paymentWorker = new Worker(
             tenantId: tenant[0]._id,
             razorpay_payment_id,
             roomNumber: room.roomNumber,
-            mode: "Online",
+            mode: "online",
             status: "paid",
             amountpaid: booking.amount.payableAmount,
             walletused: booking.amount.walletUsed || 0,
             totalAmount: booking.amount.totalAmount,
             email: booking.email,
             branch: branch._id,
-            advancedpaid:room.advancedmonth?room.price*room.advancedmonth:0,
+            rent:room.price,
+            paymentInMonth: new Date().toISOString().slice(0, 7)
+
+
+
           },
         ],
         { session }
