@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const { refundQueue, refundVerifyQueue } = require("../queue"); // correct path
 
 // 🔹 Run every 5 minutes for refund processing
-cron.schedule("* * * * *", async () => {
+cron.schedule("*/10 * * * *", async () => {
   console.log("⏰ Refund processing cron triggered:", new Date());
 
   if (!refundQueue) {

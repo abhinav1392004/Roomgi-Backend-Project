@@ -86,6 +86,7 @@ const paymentWorker = new Worker(
           {
             tenantId: tenant[0]._id,
             razorpay_payment_id,
+            razorpay_order_id,
             roomNumber: room.roomNumber,
             mode: "online",
             status: "paid",

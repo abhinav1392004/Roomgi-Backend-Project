@@ -98,7 +98,7 @@ const tenantSchema = new mongoose.Schema({
     type: String,
     enum: ["Aadhar-Card", "Voter-Id-Card"]
   },
-
+  lastDuesCalculatedAt:{type:Date},
   idProof: String,
 
   documentsPhoto: [String],

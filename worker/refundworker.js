@@ -9,85 +9,68 @@ const razorpay = new Razorpay({
 });
 
 new Worker(
-  "REFUND_PROCESSING",
+  "refund", // ✅ SAME AS QUEUE NAME
   async () => {
     console.log("🔁 Refund worker started");
 
     const cursor = Booking.find({
-      status: { $in: ["processing", "refund_failed"] }
+      status: { $in: ["processing", "refund_failed", "refund_initiated"] }
     }).cursor();
 
-    for (let booking = await cursor.next(); booking; booking = await cursor.next()) {
+    for (
+      let booking = await cursor.next();
+      booking;
+      booking = await cursor.next()
+    ) {
       try {
         console.log("\n💸 Booking:", booking._id);
         console.log("💳 Payment:", booking.razorpay.paymentId);
 
-        const refundAmountPaise = Math.round(booking.amount.payableAmount * 100);
+        const paymentId = booking.razorpay.paymentId;
 
         // 1️⃣ Fetch payment
-        const payment = await razorpay.payments.fetch(
-          booking.razorpay.paymentId
-        );
-
+        const payment = await razorpay.payments.fetch(paymentId);
         console.log("📌 Payment status:", payment.status);
 
-        // ❌ Payment not captured
         if (payment.status !== "captured" && payment.status !== "refunded") {
           console.log("❌ Payment not refundable");
           continue;
         }
 
-        // 2️⃣ If already refunded → fetch refund details
-        if (payment.status === "refunded") {
-          console.log("✅ Already refunded → fetching refund details");
-
-          const refunds = await razorpay.payments.fetchRefunds(
-            booking.razorpay.paymentId,
-            { count: 10 } // 🔥 IMPORTANT
+        // 2️⃣ If refund already exists → check status
+        if (booking.razorpay.refundId) {
+          const refund = await razorpay.refunds.fetch(
+            booking.razorpay.refundId
           );
 
-          console.log("📦 Refund list count:", refunds.count);
+          console.log("🔎 Refund status:", refund.status);
 
-          if (!refunds.items || refunds.items.length === 0) {
-            console.log("⚠️ Refund exists but Razorpay list empty");
-            continue;
-          }
-
-          // Latest refund (Razorpay returns oldest → newest)
-          const refund = refunds.items[refunds.items.length - 1];
-
-          console.log("🔎 Refund details:", {
-            id: refund.id,
-            status: refund.status,
-            amount: refund.amount,
-            speed: refund.speed,
-            created_at: refund.created_at
-          });
-
-          booking.status = refund.status === "processed"
-            ? "refunded"
-            : "refund_failed";
-
-          booking.razorpay.refundId = refund.id;
-          booking.razorpay.refundAmount = refund.amount / 100;
           booking.razorpay.refundStatus = refund.status;
+
+          if (refund.status === "processed") {
+            booking.status = "refunded";
+          } else if (refund.status === "failed") {
+            booking.status = "refund_failed";
+          } else {
+            booking.status = "refund_initiated"; // pending
+          }
 
           await booking.save();
           continue;
         }
 
-
-        // 3️⃣ Create refund if captured
-        booking.status = "refund_initiated";
-        await booking.save();
-
-        const refund = await razorpay.payments.refund(
-          booking.razorpay.paymentId,
-          { amount: refundAmountPaise }
+        // 3️⃣ No refund yet → create refund
+        const refundAmountPaise = Math.round(
+          booking.amount.payableAmount * 100
         );
+
+        const refund = await razorpay.payments.refund(paymentId, {
+          amount: refundAmountPaise
+        });
 
         console.log("✅ Refund created:", refund.id);
 
+        booking.status = "refund_initiated";
         booking.razorpay.refundId = refund.id;
         booking.razorpay.refundStatus = refund.status;
         booking.razorpay.refundAmount = refund.amount / 100;
@@ -97,6 +80,7 @@ new Worker(
       } catch (err) {
         booking.status = "refund_failed";
         await booking.save();
+
         console.error(
           "❌ Refund error:",
           err?.error?.description || err.message
