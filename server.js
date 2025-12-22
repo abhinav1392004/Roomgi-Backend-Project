@@ -34,8 +34,8 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieparser());
- require("./cron/refund")
- require("./cron/dailyrentcalculate")
+require("./cron/refund")
+require("./cron/dailyrentcalculate")
 
 app.use(
   cors({
@@ -72,6 +72,20 @@ mongoose
     console.error(err);
     process.exit(1);
   });
+
+
+/* =======================
+ ❤️ HEALTH CHECK (UPTIME ROBOT)
+======================= */
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    service: "roomgi-backend"
+  });
+});
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
