@@ -38,21 +38,15 @@ new Worker(
 
         // Verify actual refund status
         if (refund.status === "processed") {
-          console.log("✅ Refund confirmed in Razorpay:", booking._id);
-        } else if (refund.status === "failed") {
-          console.log("❌ Refund failed in Razorpay, update DB:", booking._id);
+          } else if (refund.status === "failed") {
           booking.status = "refund_failed"; // Update DB if actually failed
           await booking.save();
         } else {
-          console.log("⏳ Refund still processing in Razorpay:", booking._id);
-        }
+            }
 
       } catch (err) {
-        console.error("❌ Refund verification failed:", booking._id, err?.error?.description || err.message);
-      }
+            }
     }
-
-    console.log("🏁 Refund verification completed for DB-refunded bookings");
   },
   { connection: redis, concurrency: 1 }
 );

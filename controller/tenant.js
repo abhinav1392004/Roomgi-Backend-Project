@@ -394,13 +394,13 @@ exports.GetTenantsByBranch = async (req, res) => {
 
         // 1️⃣ Check Redis cache first
         const cachedData = await redisClient.get(cachedKey);
-        // if (cachedData) {
-        //     return res.status(200).json({
-        //         success: true,
-        //         message: "Tenant details fetched from cache",
-        //         tenants: JSON.parse(cachedData),
-        //     });
-        // }
+        if (cachedData) {
+            return res.status(200).json({
+                success: true,
+                message: "Tenant details fetched from cache",
+                tenants: JSON.parse(cachedData),
+            });
+        }
 
         // 2️⃣ Get all branches for this branch manager
         const branches = await branchmanager.findOne({email:req.user.email} )
@@ -619,13 +619,13 @@ exports.getAlltenantbyStatus = async (req, res) => {
 
     // ✅ Check Redis cache
     const cachedData = await redisClient.get(cacheKey);
-    // if (cachedData) {
-    //   return res.status(200).json({
-    //     success: true,
-    //     message: "Tenants fetched from cache",
-    //     tenants: JSON.parse(cachedData),
-    //   });
-    // }
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Tenants fetched from cache",
+        tenants: JSON.parse(cachedData),
+      });
+    }
 
     // ✅ Fetch all branches managed by this manager
     const branches = await branchmanager.find(
@@ -672,40 +672,40 @@ exports.getAlltenantbyStatus = async (req, res) => {
 // ---------------------------
 // Get All Active Tenants for a Branch
 // ---------------------------
-exports.getAllActiveTenant = async (req, res) => {
-    try {
-        const { id: branchId } = req.params;
-        if (!branchId) {
-            return res.status(400).json({ success: false, message: "Branch ID required" });
-        }
+// exports.getAllActiveTenant = async (req, res) => {
+//     try {
+//         const { id: branchId } = req.params;
+//         if (!branchId) {
+//             return res.status(400).json({ success: false, message: "Branch ID required" });
+//         }
 
-        const cachedKey = `tenant-${branchId}-active`;
-        const cachedData = await redisClient.get(cachedKey);
-        if (cachedData) {
-            return res.status(200).json({
-                success: true,
-                message: "Active tenants from cache",
-                tenants: JSON.parse(cachedData),
-            });
-        }
+//         const cachedKey = `tenant-${branchId}-active`;
+//         const cachedData = await redisClient.get(cachedKey);
+//         if (cachedData) {
+//             return res.status(200).json({
+//                 success: true,
+//                 message: "Active tenants from cache",
+//                 tenants: JSON.parse(cachedData),
+//             });
+//         }
 
-        const tenants = await Tenant.find({ branch: branchId, status: { $ne: "In-Active" } });
-        await redisClient.setEx(cachedKey, 3600, JSON.stringify(tenants));
+//         const tenants = await Tenant.find({ branch: branchId, status: { $ne: "In-Active" } });
+//         await redisClient.setEx(cachedKey, 3600, JSON.stringify(tenants));
 
-        return res.status(200).json({
-            success: true,
-            message: "Active tenants fetched successfully",
-            tenants,
-        });
-    } catch (error) {
-        console.error("getAllActiveTenant Error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Server Error",
-            error: error.message,
-        });
-    }
-};
+//         return res.status(200).json({
+//             success: true,
+//             message: "Active tenants fetched successfully",
+//             tenants,
+//         });
+//     } catch (error) {
+//         console.error("getAllActiveTenant Error:", error);
+//         return res.status(500).json({
+//             success: false,
+//             message: "Server Error",
+//             error: error.message,
+//         });
+//     }
+// };
 
 // ---------------------------
 // Get Tenants by Status for a Branch

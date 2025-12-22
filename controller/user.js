@@ -106,7 +106,7 @@ const signupcontroller = async (req, res) => {
 // --------------------------------------------
 const toggleWishlist = async (req, res) => {
     try {
-        const { pgId, roomId } = req.body;
+        const { pgId, branchId } = req.body;
         const userId = req.user._id;
 
         // Check if exists
@@ -124,13 +124,14 @@ const toggleWishlist = async (req, res) => {
         // If not exists, ADD it
         await Wishlist.create({
             userId,
-            pgId,
-            room: roomId
+            pgId:branchId,
+            roomId: pgId
         });
 
         res.status(200).json({
             success: true,
-            message: "Added to wishlist"
+            message: "Added to wishlist",Wishlist
+
         });
 
     } catch (err) {
@@ -149,7 +150,7 @@ const toggleWishlist = async (req, res) => {
 const getWishlist = async (req, res) => {
     try {
         const items = await Wishlist.find({ userId: req.user._id })
-            .populate("pgId");
+          
 
         const finalData = [];
 
