@@ -2,26 +2,18 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const cookieparser = require("cookie-parser");
-
-// Routers
-const userRouter = require("./router/user");
-const propertyRouter = require("./router/property");
-const tenantRouter = require("./router/tenenant");
-const complainRouter = require("./router/complain");
-const analyticsRouter = require("./router/analysis");
-const staffRouter = require("./router/staff");
-const paymentRouter = require("./router/payment");
-const reviewRouter = require("./router/review");
-const webhookRouter = require("./router/webhook");
+const cookieParser = require("cookie-parser");
 
 dotenv.config();
 
 const app = express();
 
 /* =======================
-   🔥 RAZORPAY WEBHOOK (RAW)
+   🔥 RAZORPAY WEBHOOK (RAW BODY)
+   MUST BE BEFORE express.json()
 ======================= */
+const webhookRouter = require("./router/webhook");
+
 app.post(
   "/api/payment",
   express.raw({ type: "application/json" }),
@@ -33,9 +25,7 @@ app.post(
 ======================= */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieparser());
-require("./cron/refund")
-require("./cron/dailyrentcalculate")
+app.use(cookieParser());
 
 app.use(
   cors({
@@ -51,53 +41,76 @@ app.use(
 );
 
 /* =======================
-   ROUTES
-======================= */
-app.use("/api/v1/user", userRouter);
-app.use("/api/property", propertyRouter);
-app.use("/api/tenant", tenantRouter);
-app.use("/api", complainRouter);
-app.use("/api", analyticsRouter);
-app.use("/api/staff", staffRouter);
-app.use("/api/payment", paymentRouter); // ❗ NOT webhook
-app.use("/api/review", reviewRouter);
-
-/* =======================
-   DB + SERVER
-======================= */
-mongoose
-  .connect(process.env.MONGODB_URL)
-  .then(() => console.log("✅ Database connected"))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
-
-
-/* =======================
- ❤️ HEALTH CHECK (UPTIME ROBOT)
+   ❤️ HEALTH CHECK (UPTIME ROBOT)
 ======================= */
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    service: "roomgi-backend"
+    service: "roomgi-backend",
   });
 });
 
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+/* =======================
+   ROUTERS
+======================= */
+app.use("/api/v1/user", require("./router/user"));
+app.use("/api/property", require("./router/property"));
+app.use("/api/tenant", require("./router/tenenant"));
+app.use("/api", require("./router/complain"));
+app.use("/api", require("./router/analysis"));
+app.use("/api/staff", require("./router/staff"));
+app.use("/api/payment", require("./router/payment")); // ❗ NOT webhook
+app.use("/api/review", require("./router/review"));
 
 /* =======================
-   🔥 START PAYMENT WORKER
+   DATABASE + STARTUP
 ======================= */
-require("./worker/paymentworker");
-require("./worker/duescalculateworker");
-require("./worker/paymentrentworker");
-require("./worker/refundworker");
+const PORT = process.env.PORT || 5000;
 
-console.log("🛠 Payment worker started");
+mongoose
+  .connect(process.env.MONGODB_URL)
+  .then(() => {
+    console.log("✅ Database connected");
+
+    /* =======================
+       🔥 START CRONS
+    ======================= */
+    require("./cron/refund");
+    require("./cron/dailyrentcalculate");
+    console.log("⏰ Crons started");
+
+    /* =======================
+       🔥 START WORKERS
+    ======================= */
+    require("./worker/paymentworker");
+    require("./worker/duescalculateworker");
+    require("./worker/paymentrentworker");
+    require("./worker/refundworker");
+    console.log("🛠 All workers started");
+
+    /* =======================
+       🚀 START SERVER
+    ======================= */
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ DB connection failed:", err);
+    process.exit(1);
+  });
+
+/* =======================
+   🧠 GRACEFUL SHUTDOWN (OPTIONAL BUT RECOMMENDED)
+======================= */
+process.on("SIGTERM", () => {
+  console.log("🛑 SIGTERM received. Shutting down gracefully...");
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("🛑 SIGINT received. Shutting down gracefully...");
+  process.exit(0);
+});
