@@ -69,7 +69,7 @@ const signupcontroller = async (req, res) => {
             name: User.username,
             email: User.email,
             role: User.role,
-            walletBalance:User.walletBalance,
+            walletBalance: User.walletBalance,
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET_KEY)
@@ -106,11 +106,12 @@ const signupcontroller = async (req, res) => {
 // --------------------------------------------
 const toggleWishlist = async (req, res) => {
     try {
-        const { pgId, branchId } = req.body;
+        const { roomId, branchId } = req.body;
         const userId = req.user._id;
+        console.log(req.body)
 
         // Check if exists
-        const existing = await Wishlist.findOne({ userId, pgId });
+        const existing = await Wishlist.findOne({ userId, roomId:roomId, pgId: branchId });
 
         // If exists, REMOVE it
         if (existing) {
@@ -122,15 +123,17 @@ const toggleWishlist = async (req, res) => {
         }
 
         // If not exists, ADD it
-        await Wishlist.create({
+        const w = await Wishlist.create({
             userId,
-            pgId:branchId,
-            roomId: pgId
+            roomId,       // ✅ actual PG ID
+            pgId: branchId,   // ✅ branch ID
         });
+
 
         res.status(200).json({
             success: true,
-            message: "Added to wishlist",Wishlist
+            message: "Added to wishlist",
+            w
 
         });
 
@@ -148,50 +151,49 @@ const toggleWishlist = async (req, res) => {
 // GET USER WISHLIST
 //---------------------------------------------
 const getWishlist = async (req, res) => {
-    try {
-        const items = await Wishlist.find({ userId: req.user._id })
-          
+  try {
+    const items = await Wishlist.find({ userId: req.user._id, status: "active" })
+      .populate({ path: "pgId" }); // populate branch info
 
-        const finalData = [];
+    const finalData = [];
 
-        for (const item of items) {
-            const roomId = item.roomId;
-            const branch = item.pgId; // populated branch
+    for (const item of items) {
+      const roomId = item.roomId?.toString();
+      const branch = item.pgId;
 
-            if (!branch) {
-                console.log("❌ Branch not found for item:", item._id);
-                continue;
-            }
+      if (!branch) {
+        console.log("❌ Branch not found for item:", item._id);
+        continue;
+      }
 
-            // find room inside branch.rooms
-            const room = branch.rooms?.find(r => r._id.toString() === roomId);
+      // find room inside branch.rooms
+      const room = branch.rooms?.find(r => r._id.toString() === roomId);
 
-            if (!room) {
-                console.log("❌ Room not found for branch:", branch._id, "roomId:", roomId);
-                continue;
-            }
+      if (!room) {
+        console.log("❌ Room not found for branch:", branch._id, "roomId:", roomId);
+        continue;
+      }
 
-            finalData.push({
-                _id: item._id,
-                pgId: branch,
-                room: room
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            items: finalData
-        });
-
-    } catch (error) {
-        console.log("Fetch wishlist error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch wishlist"
-        });
+      finalData.push({
+        _id: item._id,
+        pgId: branch,
+        room: room
+      });
     }
-};
 
+    return res.status(200).json({
+      success: true,
+      items: finalData, // ✅ send items to frontend
+    });
+
+  } catch (error) {
+    console.log("Fetch wishlist error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch wishlist"
+    });
+  }
+};
 
 
 
@@ -338,7 +340,7 @@ const GetUserProfile = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "User profile fetched successfully",
-            profile,complain,payment,reviews
+            profile, complain, payment, reviews
         });
     } catch (error) {
         console.log(error)

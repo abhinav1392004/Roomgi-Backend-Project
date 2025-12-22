@@ -28,7 +28,7 @@ router.get("/calculatePending/:id", calculatePending);
 // router.post("/renthistory/:tenantid", GetTenantRentHistory);
 //  router.get("/allactive/:branchId", getAllActiveTenantByBranch);
 router.get("/allstatus/:status", Validate, getAlltenantbyStatus);
-router.get("/activetenant/:id", Validate, getAllActiveTenant);
+// router.get("/activetenant/:id", Validate, getAllActiveTenant);
 router.post("/markinctive/:id",Validate, MarkTenantInactive)
 router.post("/AddRentTenants/:tenantId", Validate, AddRentTenants)
 
