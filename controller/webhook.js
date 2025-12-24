@@ -37,7 +37,7 @@ exports.paymentWebhook = async (req, res) => {
 
     // Add to queue
     console.log("Adding event to paymentQueue...");
-    await paymentQueue.add("razorpay-event", { event });
+    await paymentQueue.add("paymentQueue", { event });
     console.log("✅ Event added to queue");
 
     res.status(200).json({ success: true, message: "Webhook received" });
