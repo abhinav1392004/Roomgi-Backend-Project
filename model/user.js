@@ -4,9 +4,12 @@ const SignupSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
+  }, phone: {
+    type: Number,
+   
   },
   role: {
-    type: String,
+    type: [String],
     enum: ["owner", "branch-manager", "tenant", "user"],
     required: true
   },

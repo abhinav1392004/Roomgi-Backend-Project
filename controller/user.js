@@ -20,8 +20,8 @@ const Complaint = require("../model/user/complaints")
 
 const signupcontroller = async (req, res) => {
     try {
-        const { email, username, password, role } = req.body;
-        if (!email || !username || !password) {
+        const { email, username, password, role,phone } = req.body;
+        if (!email || !username || !password|| !phone ) {
             return res.status(400).json({
                 success: false,
                 message: 'please filled all the data carefully'
@@ -62,7 +62,8 @@ const signupcontroller = async (req, res) => {
             email,
             username,
             password: hashedpassword,
-            role
+            role,
+            phone
         })
         const payload = {
             id: User._id,
@@ -241,7 +242,7 @@ const Logincontroller = async (req, res) => {
             })
         }
 
-        if (role !== existingUser.role) {
+        if (!existingUser.role.includes(role)) {
             return res.status(400).json({
                 success: false,
                 message: "Your role is Not valid",

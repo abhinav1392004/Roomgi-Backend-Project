@@ -11,16 +11,17 @@ const {
     AppliedFilters, AppliedAllFilters, DeleteRoom,
     UpdateRoom, AllRooms, getAllBranchManager, changebranchpassword,
     DeleteBranch, DeleteProperty, GetAllBranch,
-    AddRoom, getdetails,
+    AddRoom, getdetails,Removebranchmanager,
     getalllistedandunlisted, listPgRoom,
     appointBranchManager, GetAllBranchByBranchId
 } = require("../controller/property");
 
 
 router.get("/get", Validate, GetAllBranch)
+router.delete("/re/:id",Validate,Removebranchmanager)
 router.get("/getallpg", getalllistedandunlisted)
 router.post("/listpg", listPgRoom)
-router.post("/getproperty/allbranchmanager",Validate, getAllBranchManager)
+router.get("/getproperty/all",Validate, getAllBranchManager)
 router.delete("/deleteroomimage", deleteimage)
 // Upload up to 10 images
 router.put(

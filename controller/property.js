@@ -276,8 +276,6 @@ exports.AddBranch = async (req, res) => {
 
 exports.GetAllBranchByBranchId = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const manager = await branchmanager.findOne({ userId }).lean();
     const useremail = req.user.email;
     // Fetch branches only for the current branch manager
     const branches = await branchmanager.find({ email: useremail }).lean();
@@ -296,27 +294,62 @@ exports.GetAllBranchByBranchId = async (req, res) => {
     });
   }
 };
+
 exports.appointBranchManager = async (req, res) => {
   try {
-    const { name, email, phone } = req.body;
+    console.log("appointBranchManager triggered");
+
+    let { name, email, phone } = req.body;
     const branchId = req.params.id;
 
+    // 🔹 Find the branch
     const branch = await PropertyBranch.findById(branchId);
     if (!branch) return res.status(404).json({ message: "Branch not found" });
 
-    const existing = await Signup.findOne({ email });
-    if (existing) return res.status(409).json({ message: "Manager exists" });
+    let user;
 
-    const hashed = await bcrypt.hash("1234", 10);
+    // 🔹 CASE 1: Email provided
+    if (email) {
+      user = await Signup.findOne({ email });
 
-    const user = await Signup.create({
-      email,
-      password: hashed,
-      role: "branch-manager",
-      username: name,
-    });
+      if (user) {
+        // Existing user → ensure branch-manager role
+        name = user.username;
+        phone = phone || user.phone;
 
-    const manager = await branchmanager.create({
+        if (!user.role.includes("branch-manager")) {
+          user.role.push("branch-manager");
+          await user.save();
+        }
+      } else {
+        // Create new branch-manager user
+        const hashed = await bcrypt.hash("1234", 10);
+        user = await Signup.create({
+          email,
+          password: hashed,
+          username: name,
+          phone,
+          role: ["branch-manager"],
+        });
+      }
+    } 
+    // 🔹 CASE 2: No email → appoint logged-in user
+    else {
+      user = await Signup.findById(req.user.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      name = user.username;
+      email = user.email;
+      phone = phone || user.phone;
+
+      if (!user.role.includes("branch-manager")) {
+        user.role.push("branch-manager");
+        await user.save();
+      }
+    }
+
+    // 🔹 Create BranchManager record
+    const manager = await BranchManager.create({
       userId: user._id,
       propertyId: branchId,
       name,
@@ -324,20 +357,90 @@ exports.appointBranchManager = async (req, res) => {
       phone,
     });
 
+    // 🔹 Assign manager to branch
     branch.branchmanager = manager._id;
     await branch.save();
 
+    // 🔹 Clear Redis cache
+    if (redisClient) {
+      redisClient.del(`branches-${req.user.id}-allbranch`);
+    }
+
     res.status(201).json({
       success: true,
-      message: "Branch manager appointed",
+      message: "Branch manager appointed successfully",
       manager,
     });
 
   } catch (error) {
+    console.error("appointBranchManager error:", error);
     res.status(500).json({ error: error.message });
   }
 };
+exports.getAllBranchManager = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const branches = await PropertyBranch.find({ owner: userId }).populate("branchmanager");
 
+    const managers = branches.map(branch => branch.branchmanager).filter(Boolean);
+
+    return res.status(200).json({
+      success: true,
+      message: "Fetched all branch managers",
+      branchManagers: managers,
+    });
+  } catch (error) {
+    console.error("getAllBranchManager Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+};
+exports.Removebranchmanager = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1️⃣ Validate ID
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Manager ID is required",
+      });
+    }
+
+    // 2️⃣ Check if manager exists
+    const manager = await branchmanager.findById(id);
+
+    if (!manager) {
+      return res.status(404).json({
+        success: false,
+        message: "Branch manager not found",
+      });
+    }
+
+    // 3️⃣ OPTIONAL: remove manager from branch/property
+    // await Branch.updateOne(
+    //   { manager: id },
+    //   { $unset: { manager: "" } }
+    // );
+
+    // 4️⃣ Delete manager
+    await branchmanager.findByIdAndDelete(id);
+      if (redisClient) {
+      redisClient.del(`branches-${req.user.id}-allbranch`);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Branch manager removed successfully",
+    });
+  } catch (error) {
+    console.error("Removebranchmanager Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
 
 
 
@@ -386,23 +489,7 @@ exports.changebranchpassword = async (req, res) => {
   }
 };
 
-exports.getAllBranchManager = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const branches = await PropertyBranch.find({ owner: userId }).populate("branchmanager");
 
-    const managers = branches.map(branch => branch.branchmanager).filter(Boolean);
-
-    return res.status(200).json({
-      success: true,
-      message: "Fetched all branch managers",
-      branchManagers: managers,
-    });
-  } catch (error) {
-    console.error("getAllBranchManager Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
-  }
-};
 
 exports.GetAllBranchOwner = async (req, res) => {
   try {
@@ -584,7 +671,6 @@ exports.AddRoom = async (req, res) => {
       roomtype,
       renttype,
       flattype,
-      services,
       advancedmonth
     } = req.body;
 
