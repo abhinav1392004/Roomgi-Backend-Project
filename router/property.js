@@ -7,7 +7,7 @@ const upload = multer({ storage: multer.diskStorage({}) });
 
 const {
     GetAllBranchOwner, AddBranch, EditBranch, getAllPg,
-    deleteimage, addRoomImages,
+    deleteimage, addRoomImages,appoingtexistingBranchManager,
     AppliedFilters, AppliedAllFilters, DeleteRoom,
     UpdateRoom, AllRooms, getAllBranchManager, changebranchpassword,
     DeleteBranch, DeleteProperty, GetAllBranch,
@@ -51,6 +51,7 @@ router.get("/get/:id", getdetails)
  router.get("/getbranch/bybranchMnager", Validate, GetAllBranchByBranchId)
 router.post("/add", Validate, upload.array("images"), AddBranch);
 router.post("/createbranchmanager/:id", Validate, IsOwner, appointBranchManager)
+router.post("/createexistingbranchmanager/:id", Validate, appoingtexistingBranchManager)
 router.patch("/edit/:branchId", Validate, EditBranch)
 router.delete("/DeleteBranch", Validate, DeleteBranch)
 router.delete("/DeleteProperty/:id", Validate, DeleteProperty)

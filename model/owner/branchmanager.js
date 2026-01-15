@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 
 const branchManagerSchema = new mongoose.Schema(
     {
-        propertyId: {
+        propertyId: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "PropertyBranch",
             required: true,
-        },
+        }],
 
         name: {
             type: String,
