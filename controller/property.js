@@ -422,7 +422,6 @@ if (managerData) {
     res.status(500).json({ error: error.message });
   }
 };
-
 exports.getAllBranchManager = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -494,11 +493,17 @@ exports.Removebranchmanager = async (req, res) => {
     );
 
     // 🔹 If no branches left → delete manager
-    if (manager.propertyId.length === 0) {
-      await branchmanager.findByIdAndDelete(id);
-    } else {
-      await manager.save();
-    }
+   if (manager.propertyId.length === 0) {
+  // Delete branch manager
+  await branchmanager.findByIdAndDelete(id);
+
+  // Also delete login/signup record of that manager
+  await Signup.findOneAndDelete({ email: manager.email });
+
+} else {
+  await manager.save();
+}
+
 
     // 🔹 Remove manager from branch
     await PropertyBranch.findByIdAndUpdate(branchId, {
@@ -670,6 +675,9 @@ exports.DeleteProperty = async (req, res) => {
 
     // Delete property
     const deletedProperty = await PropertyBranch.findByIdAndDelete(id);
+    if (redisClient) {
+      redisClient.del(`branches-${req.user.id}-allbranch`);
+    }
 
     if (!deletedProperty) {
       return res.status(404).json({
@@ -866,13 +874,7 @@ exports.AddRoom = async (req, res) => {
 
 exports.AllRooms = async (req, res) => {
   try {
-    if (req.user.role !== "branch-manager") {
-      return res.status(403).json({
-        success: false,
-        message: "Only branch managers can access rooms",
-      });
-    }
-
+   
     // 🔥 Find manager
     const manager = await branchmanager.findOne({ email: req.user.email });
     if (!manager || !manager.propertyId) {
@@ -900,6 +902,49 @@ exports.AllRooms = async (req, res) => {
     });
   }
 };
+
+exports.ownerAllroom = async (req, res) => {
+  try {
+    // 1️⃣ Owner ke saare branches nikaalo
+    const branches = await propertyBranch
+      .find({ owner: req.user.id })
+      .select("rooms name city address");
+
+    if (!branches || branches.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No branches found for this owner",
+      });
+    }
+
+    // 2️⃣ Saare rooms ek array me flatten karo
+    const allRooms = branches.flatMap(branch =>
+      branch.rooms.map(room => ({
+        ...room.toObject(),
+        branchId: branch._id,
+        branchName: branch.name,
+        branchCity: branch.city,
+        branchAddress: branch.address,
+      }))
+    );
+
+    // 3️⃣ Response
+    return res.status(200).json({
+      success: true,
+      totalBranches: branches.length,
+      totalRooms: allRooms.length,
+      rooms: allRooms,
+    });
+
+  } catch (error) {
+    console.error("Owner all room error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching rooms",
+    });
+  }
+};
+
 
 
 // ---------------------------

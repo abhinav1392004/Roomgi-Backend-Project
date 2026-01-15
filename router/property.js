@@ -12,7 +12,7 @@ const {
     UpdateRoom, AllRooms, getAllBranchManager, changebranchpassword,
     DeleteBranch, DeleteProperty, GetAllBranch,
     AddRoom, getdetails,Removebranchmanager,
-    getalllistedandunlisted, listPgRoom,
+    getalllistedandunlisted, listPgRoom,ownerAllroom,
     appointBranchManager, GetAllBranchByBranchId
 } = require("../controller/property");
 
@@ -33,6 +33,7 @@ router.put(
 router.put("/branchmanager/passwordchange", Validate, changebranchpassword)
 router.get("/getalllbranchowner", Validate, GetAllBranchOwner)
 router.get("/allrooms", Validate, AllRooms)
+router.get("/allroomsaccordingtoowner", Validate, ownerAllroom)
 router.delete("/deleteroom/:id", Validate, DeleteRoom)
 router.put("/updateroom/:Id", Validate, UpdateRoom)
 router.post("/appliedallfilter", AppliedAllFilters)
